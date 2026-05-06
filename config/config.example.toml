@@ -1,0 +1,44 @@
+[app]
+name = "savh-erp-db-backup"
+prefix = "savh_erp"
+timezone = "America/Santiago"
+
+[paths]
+data_dir = "/data"
+backup_dir = "/data/backups"
+logs_dir = "/data/logs"
+manifests_dir = "/data/manifests"
+state_dir = "/data/state"
+
+[database]
+include_globals = false
+
+[schedule]
+day_of_week = "mon,wed,fri"
+hour = 23
+minute = 0
+catch_up_hours = 24
+misfire_grace_seconds = 3600
+
+[storage]
+provider = "google_drive"
+drive_folder_id = "REEMPLAZAR_CON_FOLDER_ID"
+chunk_size_mb = 8
+
+# Backend util para pruebas locales sin Drive:
+# provider = "filesystem"
+# filesystem_dir = "/data/remote"
+
+[retention]
+local_days = 14
+remote_days = 90
+
+[encryption]
+enabled = false
+
+[sentry]
+environment = "production"
+monitor_slug = "savh-erp-db-backup"
+checkin_margin_minutes = 60
+max_runtime_minutes = 180
+

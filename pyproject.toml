@@ -1,0 +1,32 @@
+[project]
+name = "savh-erp-db-backup"
+version = "0.1.0"
+description = "App standalone para backups programados de PostgreSQL y subida a Google Drive."
+readme = "README.md"
+requires-python = ">=3.12,<4.0"
+dependencies = [
+    "apscheduler==3.11.2",
+    "google-api-python-client==2.195.0",
+    "google-auth==2.50.0",
+    "sentry-sdk==2.59.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.0.3",
+]
+
+[project.scripts]
+savh-backup = "savh_backup.cli:main"
+
+[build-system]
+requires = ["setuptools>=70.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"

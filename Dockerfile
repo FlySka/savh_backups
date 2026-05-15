@@ -1,5 +1,7 @@
 FROM python:3.12-slim
 
+ARG PG_MAJOR=18
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -18,7 +20,7 @@ RUN apt-get update && \
     echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] http://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
         > /etc/apt/sources.list.d/pgdg.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends postgresql-client-16 && \
+    apt-get install -y --no-install-recommends postgresql-client-${PG_MAJOR} && \
     rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml README.md ./

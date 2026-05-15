@@ -25,6 +25,12 @@ provider = "google_drive"
 drive_folder_id = "REEMPLAZAR_CON_FOLDER_ID"
 chunk_size_mb = 8
 
+# Para Google Drive personal con OAuth de usuario:
+# provider = "google_drive_oauth"
+# drive_folder_id = "REEMPLAZAR_CON_FOLDER_ID"
+# oauth_client_secret_path = "../secrets/google-oauth-client.json"
+# oauth_token_path = "../secrets/google-oauth-token.json"
+
 # Backend util para pruebas locales sin Drive:
 # provider = "filesystem"
 # filesystem_dir = "/data/remote"

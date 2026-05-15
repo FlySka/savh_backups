@@ -8,6 +8,8 @@ dependencies = [
     "apscheduler==3.11.2",
     "google-api-python-client==2.195.0",
     "google-auth==2.50.0",
+    "google-auth-oauthlib==1.2.2",
+    "python-dotenv==1.1.1",
     "sentry-sdk==2.59.0",
 ]
 
@@ -22,6 +24,12 @@ savh-backup = "savh_backup.cli:main"
 [build-system]
 requires = ["setuptools>=70.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.poetry]
+packages = [{ include = "savh_backup", from = "src" }]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "9.0.3"
 
 [tool.setuptools.packages.find]
 where = ["src"]

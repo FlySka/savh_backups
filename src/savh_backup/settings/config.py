@@ -7,9 +7,14 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from dotenv import find_dotenv, load_dotenv
+
 
 class ConfigError(RuntimeError):
     """Raised when the app configuration is invalid."""
+
+
+_PLACEHOLDER_DRIVE_FOLDER_IDS = {"REEMPLAZAR_CON_FOLDER_ID", "CHANGE_ME", "YOUR_FOLDER_ID"}
 
 
 @dataclass(frozen=True)
@@ -62,6 +67,8 @@ class StorageSection:
     provider: str
     drive_folder_id: str | None
     filesystem_dir: Path | None
+    oauth_client_secret_path: Path | None
+    oauth_token_path: Path | None
     chunk_size_bytes: int
 
 
@@ -120,7 +127,12 @@ def load_config(path: str | Path | None = None) -> AppConfig:
         ConfigError: If required values are missing or invalid.
     """
 
-    config_path = Path(path or os.environ.get("SAVH_BACKUP_CONFIG", "config/config.toml"))
+    dotenv_path = find_dotenv(usecwd=True)
+    if dotenv_path:
+        load_dotenv(dotenv_path=dotenv_path, override=False)
+    config_path = Path(path or os.environ.get("SAVH_BACKUP_CONFIG", "config/config.toml")).expanduser()
+    if not config_path.is_absolute():
+        config_path = config_path.resolve()
     if not config_path.exists():
         raise ConfigError(f"Config file does not exist: {config_path}")
 
@@ -135,6 +147,8 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     retention_raw = _section(raw, "retention")
     encryption_raw = _section(raw, "encryption")
     sentry_raw = _section(raw, "sentry")
+
+    storage_provider = _str(storage_raw, "provider")
 
     config = AppConfig(
         app=AppSection(
@@ -165,9 +179,21 @@ def load_config(path: str | Path | None = None) -> AppConfig:
             misfire_grace_seconds=_int(schedule_raw, "misfire_grace_seconds"),
         ),
         storage=StorageSection(
-            provider=_str(storage_raw, "provider"),
+            provider=storage_provider,
             drive_folder_id=_optional_str(storage_raw, "drive_folder_id"),
             filesystem_dir=_optional_path(storage_raw, "filesystem_dir", config_path),
+            oauth_client_secret_path=_storage_optional_path(
+                storage_raw,
+                "oauth_client_secret_path",
+                config_path,
+                default="../secrets/google-oauth-client.json" if storage_provider == "google_drive_oauth" else None,
+            ),
+            oauth_token_path=_storage_optional_path(
+                storage_raw,
+                "oauth_token_path",
+                config_path,
+                default="../secrets/google-oauth-token.json" if storage_provider == "google_drive_oauth" else None,
+            ),
             chunk_size_bytes=_chunk_size_bytes(storage_raw),
         ),
         retention=RetentionSection(
@@ -207,9 +233,18 @@ def validate_config(config: AppConfig) -> None:
         raise ConfigError("storage.chunk_size_mb must be at least 1")
     if config.storage.chunk_size_bytes % (256 * 1024) != 0:
         raise ConfigError("storage.chunk_size_mb must produce a multiple of 256 KiB")
-    if config.storage.provider == "google_drive":
+    if config.storage.provider in {"google_drive", "google_drive_oauth"}:
         if not config.storage.drive_folder_id:
-            raise ConfigError("storage.drive_folder_id is required for google_drive")
+            raise ConfigError(f"storage.drive_folder_id is required for {config.storage.provider}")
+        if config.storage.drive_folder_id in _PLACEHOLDER_DRIVE_FOLDER_IDS:
+            raise ConfigError(
+                "storage.drive_folder_id still uses the example placeholder; set the real Google Drive folder id or switch to filesystem for local runs"
+            )
+        if config.storage.provider == "google_drive_oauth":
+            if config.storage.oauth_client_secret_path is None:
+                raise ConfigError("storage.oauth_client_secret_path is required for google_drive_oauth")
+            if config.storage.oauth_token_path is None:
+                raise ConfigError("storage.oauth_token_path is required for google_drive_oauth")
     elif config.storage.provider == "filesystem":
         if config.storage.filesystem_dir is None:
             raise ConfigError("storage.filesystem_dir is required for filesystem")
@@ -272,6 +307,21 @@ def _optional_path(raw: dict[str, object], key: str, config_path: Path) -> Path 
     value = _optional_str(raw, key)
     if value is None:
         return None
+    return _resolve_path(value, config_path)
+
+
+def _storage_optional_path(
+    raw: dict[str, object],
+    key: str,
+    config_path: Path,
+    *,
+    default: str | None,
+) -> Path | None:
+    value = _optional_str(raw, key)
+    if value is None:
+        if default is None:
+            return None
+        value = default
     return _resolve_path(value, config_path)
 
 

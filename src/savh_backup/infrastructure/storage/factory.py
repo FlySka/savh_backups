@@ -15,7 +15,7 @@ class StorageFactory:
     def create(storage: StorageSection) -> StorageBackend:
         """Return the configured storage backend."""
 
-        if storage.provider == "google_drive":
+        if storage.provider in {"google_drive", "google_drive_oauth"}:
             return GoogleDriveBackend(storage)
         if storage.provider == "filesystem":
             if storage.filesystem_dir is None:

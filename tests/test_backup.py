@@ -42,5 +42,5 @@ def test_pg_dump_client_raises_on_dump_failure(tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(subprocess, "run", fake_run)
 
-    with pytest.raises(BackupError):
+    with pytest.raises(BackupError, match="pg_dump failed with exit code 2: connection failed"):
         PgDumpClient(_database()).create_backup(tmp_path / "savh_erp_test.pgcustom")

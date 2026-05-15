@@ -98,16 +98,20 @@ class PgDumpClient:
             check=False,
         )
         if result.returncode != 0:
+            detail = _compact(result.stderr or "") or _compact(result.stdout or "")
             logger.error(
                 "%s failed",
                 label,
                 extra={
                     "phase": "dump",
                     "returncode": result.returncode,
-                    "stderr": _compact(result.stderr),
+                    "stderr": _compact(result.stderr or ""),
                 },
             )
-            raise BackupError(f"{label} failed with exit code {result.returncode}")
+            message = f"{label} failed with exit code {result.returncode}"
+            if detail:
+                message = f"{message}: {detail}"
+            raise BackupError(message)
 
 
 def _compact(value: str, limit: int = 2000) -> str:

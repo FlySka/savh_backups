@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from savh_backup.settings.config import StorageSection
+from savh_backup.infrastructure.storage.drive_auth import build_drive_service
 from savh_backup.infrastructure.storage.base import APP_MARKER, RemoteFile, RemoteUpload
 
 logger = logging.getLogger(__name__)
-
-DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
 
 class GoogleDriveBackend:
@@ -22,9 +20,11 @@ class GoogleDriveBackend:
     def __init__(self, storage: StorageSection) -> None:
         if not storage.drive_folder_id:
             raise ValueError("drive_folder_id is required")
+        self._provider = storage.provider
         self._folder_id = storage.drive_folder_id
         self._chunk_size_bytes = storage.chunk_size_bytes
-        self._service = _build_drive_service()
+        self._service = build_drive_service(storage)
+        self._folder_name = self._validate_folder_access()
 
     def upload_file(
         self,
@@ -65,7 +65,11 @@ class GoogleDriveBackend:
                 )
         logger.info(
             "Drive upload complete",
-            extra={"phase": "upload", "drive_file_id": response["id"], "name": response["name"]},
+            extra={
+                "phase": "upload",
+                "drive_file_id": response["id"],
+                "drive_file_name": response["name"],
+            },
         )
         return RemoteUpload(
             file_id=str(response["id"]),
@@ -122,19 +126,36 @@ class GoogleDriveBackend:
         self._service.files().delete(fileId=file_id, supportsAllDrives=True).execute()
         logger.info("Deleted Drive backup", extra={"phase": "cleanup", "drive_file_id": file_id})
 
+    def _validate_folder_access(self) -> str | None:
+        try:
+            response = (
+                self._service.files()
+                .get(
+                    fileId=self._folder_id,
+                    fields="id,name,mimeType",
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+        except Exception as exc:
+            raise RuntimeError(_drive_folder_access_error(self._folder_id, exc, provider=self._provider)) from exc
 
-def _build_drive_service() -> Any:
-    from google.oauth2 import service_account
-    from googleapiclient.discovery import build
+        mime_type = str(response.get("mimeType") or "")
+        if mime_type != "application/vnd.google-apps.folder":
+            raise RuntimeError(
+                f"Configured Google Drive destination '{self._folder_id}' is not a folder"
+            )
 
-    credentials_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-    if not credentials_path:
-        raise RuntimeError("GOOGLE_APPLICATION_CREDENTIALS is required for Google Drive")
-    credentials = service_account.Credentials.from_service_account_file(
-        credentials_path,
-        scopes=DRIVE_SCOPES,
-    )
-    return build("drive", "v3", credentials=credentials, cache_discovery=False)
+        folder_name = response.get("name")
+        logger.info(
+            "Drive folder access verified",
+            extra={
+                "phase": "validate",
+                "drive_folder_id": self._folder_id,
+                "drive_folder_name": folder_name,
+            },
+        )
+        return str(folder_name) if folder_name else None
 
 
 def _parse_drive_dt(value: object) -> datetime | None:
@@ -154,3 +175,18 @@ def _optional_int(value: object) -> int | None:
 
 def _escape_query(value: str) -> str:
     return value.replace("\\", "\\\\").replace("'", "\\'")
+
+
+def _drive_folder_access_error(folder_id: str, exc: BaseException, *, provider: str) -> str:
+    status = getattr(getattr(exc, "resp", None), "status", None)
+    if status == 404:
+        identity = (
+            "the configured service account"
+            if provider == "google_drive"
+            else "the configured Google Drive OAuth user"
+        )
+        return (
+            f"Google Drive folder '{folder_id}' was not found for {identity}. "
+            "Verify the folder id and ensure the configured Google Drive identity can access that folder."
+        )
+    return f"Could not access Google Drive folder '{folder_id}': {exc}"

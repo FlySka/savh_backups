@@ -1,5 +1,6 @@
 .env
 config/config.toml
+config/config.local.toml
 data/
 secrets/
 .pytest_cache/

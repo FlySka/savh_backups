@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        PG_MAJOR: ${PG_MAJOR:-18}
     image: savh-erp-db-backup:local
     container_name: savh_erp_db_backup
     restart: unless-stopped
